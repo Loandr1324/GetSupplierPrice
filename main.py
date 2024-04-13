@@ -86,7 +86,7 @@ def get_price_supplier(products: list[dict]) -> list[dict]:
                     filtered_supplier.append(res)
 
             filtered_res[rule] = filtered_supplier
-            product['result']['id_rule'][rule]['filter_by_routes'] = len(filtered_supplier)
+            product['result']['id_rule'][rule]['filter_by_supplier'] = len(filtered_supplier)
 
             # Фильтруем по маршрутам
             filtered_routes = []
@@ -265,6 +265,15 @@ def sort_price_products(products: list[dict]) -> (list[dict], list[dict]):
                     'filter_by_price_deviation': rule_result['filter_by_price_deviation'],
                     'select_count_product': rule_result['select_count_product']
                 })
+            if err_price_product:
+                price_product.append({
+                    'number': product['number'],
+                    'brand': product['brand'],
+                    'row_product_on_sheet': product['row_product_on_sheet'],
+                    'last_update_date': date_now,
+                    'new_price': ''
+                })
+
     return price_product, err_price_product
 
 
