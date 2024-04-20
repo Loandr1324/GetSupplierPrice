@@ -167,6 +167,7 @@ class WorkGoogle:
             'updated_date' - Дата последнего получения цены
             'turn_ratio' - Коэффициент оборачиваемости
             'norm_stock' - Норма наличия
+            'product_group' - Товарная группа
             'rule' - Правило выбора цены
             'select_flag' - Отбор для получения цены
             'id_rule' - ID правила для получения цены
@@ -174,7 +175,7 @@ class WorkGoogle:
         """
         sheet_products = self._rw_google.read_sheet(0)
         params_head = ['number', 'brand', 'description', 'stock', 'price', 'updated_date', 'turn_ratio',
-                       'norm_stock', 'rule', 'select_flag', 'id_rule']
+                       'norm_stock', 'product_group', 'rule', 'select_flag', 'id_rule']
         products = []
         for i, val in enumerate(sheet_products[1:], start=2):
             product = dict(zip(params_head, val))
