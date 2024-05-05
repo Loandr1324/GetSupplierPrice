@@ -56,6 +56,438 @@ def selected_rule_for_position(products: list[dict], rules: list[dict]) -> list[
 
 def get_price_supplier(products: list[dict]) -> list[dict]:
     """
+    Получение цены согласно заданных правил
+    :param products:
+    :return:
+    """
+    logger.debug(products)
+    work_abcp = WorkABCP()
+    for product in products:
+        result = asyncio.run(work_abcp.get_price_supplier(product['brand'], product['number']))
+        product['result'] = {'first_result': len(result)}
+        product['result']['id_rule'] = {}
+
+        for rule in product['id_rule']:
+            product['result']['id_rule'][rule] = {}
+            product = filtered_result(result, rule, product)
+    return products
+
+
+def pass_filter_by_supplier(result: list[dict], id_rule: str, product: dict) -> (dict, list[dict]):
+    """
+    Пропускаем фильтр по поставщикам
+    :param result: Список результатов проценки
+    :param id_rule: Идентификатор правила
+    :param product: Данные по процениваемому продукту
+    :return:
+    """
+    logger.debug("Не учитываем правила поставщиков")
+    product['result']['id_rule'][id_rule]['filter_by_supplier'] = len(result)
+    return product, result
+
+
+def filter_by_black_supplier(result: list[dict], id_rule: str, product: dict) -> (dict, list[dict]):
+    """
+    Фильтруем по чёрному списку поставщиков
+    :param result: Список результатов проценки
+    :param id_rule: Идентификатор правила
+    :param product: Данные по процениваемому продукту
+    :return:
+    """
+    logger.info("Фильтруем по чёрному списку поставщиков")
+    rule_details = product.get('id_rule', {}).get(id_rule, {})
+    black_list = rule_details.get('id_suppliers', '').replace(' ', '').split(',') \
+        if isinstance(rule_details.get('id_suppliers'), str) else rule_details.get('id_suppliers', [])
+
+    filtered_by_supplier = [res for res in result if str(res.get('distributorId')) not in black_list]
+    count_matches = len(filtered_by_supplier)
+    logger.debug(f"Получили {count_matches} результат(ов) после фильтрации по чёрному списку поставщиков")
+
+    product['result']['id_rule'][id_rule]['filter_by_supplier'] = count_matches
+    return product, filtered_by_supplier
+
+
+def filter_by_white_supplier(result: list[dict], id_rule: str, product: dict) -> (dict, list[dict]):
+    """
+    Фильтруем по белому списку поставщиков
+    :param result: Список результатов проценки
+    :param id_rule: Идентификатор правила
+    :param product: Данные по процениваемому продукту
+    :return: (product, filtered_by_white_supplier)
+    """
+    logger.info(f"Фильтруем по белому списку поставщиков")
+    filtered_by_white_supplier = []
+    white_list = product['id_rule'][id_rule]['id_suppliers'].replace(' ', '').split(',')
+    logger.debug(f"Список поставщиков: {white_list}")
+    for supplier in white_list:
+        if supplier == "*":
+            filtered_by_white_supplier = [res for res in result if str(res['distributorId']) not in white_list]
+        else:
+            filtered_by_white_supplier = [res for res in result if str(res['distributorId']) == supplier]
+        count_matches = len(filtered_by_white_supplier)
+
+        filter_key = 'filter_by_supplier'
+        existing_value = product['result']['id_rule'].get(id_rule, {}).get(filter_key, "")
+        new_value = f"{supplier}: {count_matches}"
+        if not product['result'].get('id_rule'):
+            product['result']['id_rule'] = {}
+        if not product['result']['id_rule'].get(id_rule):
+            product['result']['id_rule'][id_rule] = {}
+        product['result']['id_rule'][id_rule][filter_key] = \
+            f"{existing_value}, {new_value}" if existing_value else new_value
+
+        logger.error(product['result']['id_rule'][id_rule])
+        logger.debug(f"Получили {len(filtered_by_white_supplier)} результат(ов) по поставщику {supplier}")
+
+        # Фильтруем по маршруту
+        product, filtered_by_white_supplier = filter_by_routes(filtered_by_white_supplier, id_rule, product, supplier)
+        logger.warning(f"Количество после фильтрации по маршруту: {product['result']['id_rule'][id_rule]}")
+
+        # Фильтруем по складам
+        product, filtered_by_white_supplier = filter_by_storage(filtered_by_white_supplier, id_rule, product, supplier)
+        logger.warning(f"Количество после фильтраций по белому списку поставщика {supplier}: "
+                       f"{product['result']['id_rule'][id_rule]}")
+
+        # Если позиция найдена, то выходим
+        if filtered_by_white_supplier:
+            logger.warning(f"Нашли {len(filtered_by_white_supplier)} предложения по поставщику: {supplier}. "
+                           f"Прерываем дальнейшую фильтрацию")
+            break
+
+    return product, filtered_by_white_supplier
+
+
+def filter_by_routes(result: list[dict], id_rule: str, product: dict, supplier: str = '') -> (dict, list[dict]):
+    """
+    Фильтруем по маршрутам
+    :param result: В списке словарей обязательно наличие ключа 'supplierDescription'
+    :param id_rule: Номер правила
+    :param product: В словаре обязательно наличие ключа ['result':'{id_rule': ...}]
+    :param supplier: Идентификатор поставщика
+    :return: (product, filtered_by_routes)
+    """
+    logger.info("Фильтруем по маршрутам")
+    filtered_by_routes = []
+    rule_details = product['id_rule'][id_rule]
+    name_routes = rule_details.get('name_routes', '')
+
+    for res in result:
+        supplier_description = str(res['supplierDescription'])
+        if name_routes:
+            matches = name_routes in supplier_description
+            check_routes = matches if rule_details.get('type_select_routes', False) else not matches
+        else:
+            check_routes = True
+
+        if check_routes:
+            filtered_by_routes.append(res)
+
+    count_matches = len(filtered_by_routes)
+    filter_key = 'filter_by_routes'
+    result_id_rule = product['result'].setdefault('id_rule', {}).setdefault(id_rule, {})
+    existing_value = result_id_rule.get(filter_key, "")
+    new_value = f"{supplier}: {count_matches}" if supplier else str(count_matches)
+
+    logger.debug(f"Получили {count_matches} результат(ов) по маршрутам")
+
+    result_id_rule[filter_key] = f"{existing_value}, {new_value}" if existing_value else new_value
+    return product, filtered_by_routes
+
+
+def pass_filter_by_storage(result: list[dict], id_rule: str, product: dict, supplier: str = '') -> (dict, list[dict]):
+    """
+    Пропускаем правила по складам и записываем количество результатов на этом этапе фильтрации
+    :param result: Список результатов проценки
+    :param id_rule: Идентификатор правила
+    :param product: Данные по процениваемому продукту
+    :param supplier: Идентификатор поставщика
+    :return: (product, result)
+    """
+    logger.debug(f"Пропускаем правила складов для правила {id_rule} и поставщика {supplier}")
+    count_matches = len(result)
+    filter_key = 'filter_by_storage'
+    result_id_rule = product['result'].setdefault('id_rule', {}).setdefault(id_rule, {})
+    existing_value = result_id_rule.get(filter_key, "")
+    new_value = f"{supplier}: {count_matches}" if supplier else str(count_matches)
+
+    logger.debug(f"Получили {count_matches} результат(ов) по складам для правила {id_rule}")
+    result_id_rule[filter_key] = f"{existing_value}, {new_value}" if existing_value else new_value
+    return product, result
+
+
+def filter_by_black_storage(result: list[dict], id_rule: str, product: dict, supplier: str = '') -> (dict, list[dict]):
+    """
+    Исключаем позиции со складов из чёрного списка
+    :param result: Список результатов проценки
+    :param id_rule: Идентификатор правила
+    :param product: Данные по процениваемому продукту
+    :param supplier: Идентификатор поставщика
+    :return: (product, result)
+    """
+    logger.debug("Фильтруем по чёрному списку складов")
+    rule_details = product['id_rule'][id_rule]
+    black_list = rule_details.get('supplier_storage', '').replace(' ', '').split(',') \
+        if isinstance(rule_details.get('supplier_storage'), str) else rule_details.get('supplier_storage', [])
+
+    filtered_by_storage = [res for res in result if str(res['supplierCode']) not in black_list]
+    count_matches = len(filtered_by_storage)
+    filter_key = 'filter_by_storage'
+    result_id_rule = product['result'].setdefault('id_rule', {}).setdefault(id_rule, {})
+    existing_value = result_id_rule.get(filter_key, "")
+    new_value = f"{supplier}: {count_matches}" if supplier else str(count_matches)
+
+    logger.debug(f"Получили {count_matches} результат(ов) по складам для правила {id_rule}")
+    result_id_rule[filter_key] = f"{existing_value}, {new_value}" if existing_value else new_value
+    return product, filtered_by_storage
+
+
+def filter_by_white_storage(result: list[dict], id_rule: str, product: dict, supplier: str = '') -> (dict, list[dict]):
+    """
+    Фильтруем результат по белому списку
+    :param result: Список результатов проценки
+    :param id_rule: Идентификатор правила
+    :param product: Данные по процениваемому продукту
+    :param supplier: Идентификатор поставщика
+    :return: (product, result)
+    """
+    rule_details = product['id_rule'][id_rule]
+    white_list = rule_details.get('supplier_storage', '').replace(' ', '').split(',') \
+        if isinstance(rule_details.get('supplier_storage'), str) else rule_details.get('supplier_storage', [])
+    filtered_by_white_storage = []
+    for storage in white_list:
+        if storage == "*":
+            filtered_by_white_storage = [res for res in result if str(res['supplierCode']) not in white_list]
+        else:
+            filtered_by_white_storage = [res for res in result if str(res['supplierCode']) == storage]
+        count_matches = len(filtered_by_white_storage)
+        filter_key = 'filter_by_storage'
+        result_id_rule = product['result'].setdefault('id_rule', {}).setdefault(id_rule, {})
+        existing_value = result_id_rule.get(filter_key, "")
+        new_value = f"{supplier}: {count_matches}" if supplier else str(count_matches)
+
+        logger.debug(f"Получили {count_matches} результат(ов) по складам для правила {id_rule}")
+        result_id_rule[filter_key] = f"{existing_value}, {new_value}" if existing_value else new_value
+
+        product, filtered_by_white_storage = finalize_filters(
+            filtered_by_white_storage, id_rule, product, supplier, storage
+        )
+
+        # Если позиция найдена, то выходим
+        if filtered_by_white_storage:
+            break
+    return product, filtered_by_white_storage
+
+
+def finalize_filters(
+        result: list[dict], id_rule: str, product: dict, supplier: str = '', storage: str = ''
+) -> (dict, list[dict]):
+    """
+
+    :param result: Список результатов проценки
+    :param id_rule: Идентификатор правила
+    :param product: В словаре обязательно наличие ключа ['result':'{id_rule': ...}]
+    :param supplier: Идентификатор поставщика
+    :param storage: Идентификатор склада
+    :return: (product, finalize_filtered)
+    """
+    logger.debug(f"Применяем общие оставшиеся фильтры")
+    # Фильтруем по остаткам
+    product, finalize_result = filter_by_criteria(result, id_rule, product, 'min_stock', supplier, storage)
+    # Фильтруем по вероятности поставки
+    product, finalize_result = filter_by_criteria(
+        finalize_result, id_rule, product, 'delivery_probability', supplier, storage
+    )
+    # Фильтруем по срокам поставки
+    product, finalize_result = filter_by_criteria(
+        finalize_result, id_rule, product, 'delivery_period', supplier, storage
+    )
+    # Фильтруем по цене
+    product, finalize_result = filter_by_criteria(
+        finalize_result, id_rule, product, 'price_deviation', supplier, storage
+    )
+    product, finalize_result = select_best_offer(finalize_result, id_rule, product, supplier, storage)
+
+    return product, finalize_result
+
+
+def filter_by_criteria(
+        result: list[dict], id_rule: str, product: dict, criteria: str, supplier: str = '', storage: str = ''
+) -> (dict, list[dict]):
+    """
+    Фильтруем по заданному критерию
+    :param result: Список результатов проценки
+    :param id_rule: Идентификатор правила
+    :param product: В словаре обязательно наличие ключа ['result':'{id_rule': ...}]
+    :param criteria: Критерий фильтрации ('min_stock', 'delivery_probability', 'max_delivery_period', 'price_deviation')
+    :param supplier: Идентификатор поставщика
+    :param storage: Идентификатор склада
+    :return: product, filtered_results
+    """
+    # Маппинги для ключей в словарях
+    product_criteria_keys = {
+        'min_stock': 'supplier_storage_min_stock',
+        'delivery_probability': 'delivery_probability',
+        'delivery_period': 'max_delivery_period',
+        'price_deviation': 'price_deviation'
+    }
+    res_criteria_keys = {
+        'min_stock': 'availability',
+        'delivery_probability': 'deliveryProbability',
+        'delivery_period': 'deliveryPeriod',
+        'price_deviation': 'price'
+    }
+
+    filtered_results = []
+    criteria_key = product_criteria_keys.get(criteria)
+    res_criteria_key = res_criteria_keys.get(criteria)
+    criteria_value = product['id_rule'][id_rule].get(criteria_key)
+    base_price = product.get('price', None)  # Добавляем базовую цену продукта
+
+    for res in result:
+        if criteria == 'price_deviation' and criteria_value:
+            if base_price is not None:
+                calc_deviation = abs(100 - int(res[res_criteria_key]) / int(base_price) * 100)
+                check_criteria = calc_deviation <= int(criteria_value)
+            else:
+                check_criteria = False  # Если base_price равно None, не учитываем этот результат
+        elif not criteria_value:
+            check_criteria = True
+        else:
+            if criteria == 'delivery_period':
+                check_criteria = int(res[res_criteria_key]) <= int(criteria_value)
+            else:
+                check_criteria = int(res[res_criteria_key]) >= int(criteria_value)
+
+        if check_criteria:
+            filtered_results.append(res)
+
+    count_matches = len(filtered_results)
+    filter_key = f'filter_by_{criteria}'
+    result_id_rule = product['result'].setdefault('id_rule', {}).setdefault(id_rule, {})
+    existing_value = result_id_rule.get(filter_key, "")
+
+    parts = [f"п{supplier}" if supplier else "", f"с{storage}" if storage else ""]
+    parts = [part for part in parts if part] # Убираем пустые элементы
+    new_value = " - ".join(parts) + (f": {count_matches}" if parts else str(count_matches))
+
+    logger.debug(f"Получили {count_matches} результат(ов) по {criteria} для правила {id_rule}")
+    result_id_rule[filter_key] = f"{existing_value}, {new_value}" if existing_value else new_value
+
+    return product, filtered_results
+
+
+def select_best_offer(
+        filtered_res: list[dict], id_rule: str, product: dict, supplier: str = '', storage: str = ''
+) -> (dict, list[dict]):
+    """
+    Выбирает лучшее предложение на основе заданного критерия (цена или срок).
+    :param filtered_res: Список отфильтрованных результатов
+    :param id_rule: Идентификатор правила
+    :param product: В словаре обязательно наличие ключа ['result':'{id_rule': ...}]
+    :param supplier: Идентификатор поставщика
+    :param storage: Идентификатор склада
+    :return: product, filtered_results
+    :return: Лучшее предложение
+    """
+    filtered_results = []
+    criteria_value = product['id_rule'][id_rule].get('type_selection_rule')
+    selection_criteria = "Цена" if not criteria_value else criteria_value
+
+    if not filtered_res:
+        filtered_results = []
+
+    if selection_criteria.lower() == "цена":
+        filtered_results = sorted(filtered_res, key=lambda x: float(x['price']), reverse=True)[:1]
+    elif selection_criteria.lower() == "срок":
+        filtered_results = sorted(filtered_res, key=lambda x: float(x['deliveryPeriod']), reverse=True)[:1]
+    else:
+        filtered_results = []
+
+    count_matches = len(filtered_results)
+    filter_key = f'select_count_product'
+    result_id_rule = product['result'].setdefault('id_rule', {}).setdefault(id_rule, {})
+    existing_value = result_id_rule.get(filter_key, "")
+
+    parts = [f"п{supplier}" if supplier else "", f"с{storage}" if storage else ""]
+    parts = [part for part in parts if part]  # Убираем пустые элементы
+    new_value = " - ".join(parts) + (f": {count_matches}" if parts else str(count_matches))
+
+    logger.debug(f"Получили {count_matches} результат(ов) в выборе последней позиции по правилу {id_rule}")
+    result_id_rule[filter_key] = f"{existing_value}, {new_value}" if existing_value else new_value
+
+    product['result']['id_rule'][id_rule]['select_product'] = filtered_results
+
+    return product, filtered_results
+
+
+def filter_by_storage(result: list[dict], id_rule: str, product: dict, supplier: str = '') -> (dict, list[dict]):
+    """
+    Фильтруем по складам
+    :param result: Список результатов проценки
+    :param id_rule: Идентификатор правила
+    :param product: В словаре обязательно наличие ключа ['result':'{id_rule': ...}]
+    :param supplier: Идентификатор поставщика
+    :return:
+    """
+    logger.info("Фильтруем по складам")
+    rule_details = product['id_rule'][id_rule]
+    supplier_storage = rule_details.get('supplier_storage')
+    type_select = rule_details.get('type_select_supplier_storage', False)
+
+    if supplier_storage:
+        if type_select:
+            logger.debug("Применяем фильтр белого списка по складам")
+            product, filtered_by_storage = filter_by_white_storage(result, id_rule, product, supplier)
+        else:
+            logger.debug("Применяем фильтр черного списка по складам")
+            product, filtered_by_storage = filter_by_black_storage(result, id_rule, product, supplier)
+            logger.warning(f"Количество после фильтрации по складам: {product['result']['id_rule'][id_rule]}")
+            product, filtered_by_storage = finalize_filters(filtered_by_storage, id_rule, product, supplier)
+    else:
+        logger.debug("Фильтрация по складам не требуется")
+        product, filtered_by_storage = pass_filter_by_storage(result, id_rule, product, supplier)
+        logger.warning(f"Количество после фильтрации по складам: {product['result']['id_rule'][id_rule]}")
+        product, filtered_by_storage = finalize_filters(filtered_by_storage, id_rule, product, supplier)
+
+    return product, filtered_by_storage
+
+
+def filtered_result(result: list[dict], id_rule: str, product: dict) -> dict:
+    """
+    Фильтруем результат ответа по позиции согласно заданных правил.
+
+    :param result: Список с результатами от поставщиков.
+    :param id_rule: Идентификатор применяемого правила.
+    :param product: Данные по продукту для фильтрации включая его правила
+    :return: Возвращаем исходные данные по продукту с добавленными результатами фильтрации
+    """
+    logger.info(f"Обрабатываем фильтрацию по продукту {product['number']}: {product['brand']}")
+    # Обрабатываем правима по белому списку поставщиков
+    if product['id_rule'][id_rule]['id_suppliers'] and product['id_rule'][id_rule]['type_select_supplier']:
+        product, result = filter_by_white_supplier(result, id_rule, product)
+
+    # Обрабатываем правима по чёрному списку поставщиков
+    elif product['id_rule'][id_rule]['id_suppliers'] and not product['id_rule'][id_rule]['type_select_supplier']:
+        product, result = filter_by_black_supplier(result, id_rule, product)
+        logger.warning(f"Количество после фильтрации по чёрному списку поставщиков: "
+                       f"{product['result']['id_rule'][id_rule]}")
+        product, result = filter_by_routes(result, id_rule, product)
+        logger.warning(f"Количество после фильтрации по маршруту: {product['result']['id_rule'][id_rule]}")
+        product, result = filter_by_storage(result, id_rule, product)
+
+    # Игнорируем правило по поставщикам
+    else:
+        product, result = pass_filter_by_supplier(result, id_rule, product)
+        logger.warning(f"Количество после пропуска фильтра поставщикам: {product['result']['id_rule'][id_rule]}")
+        product, result = filter_by_routes(result, id_rule, product)
+        logger.warning(f"Количество после по маршруту: {product['result']['id_rule'][id_rule]}")
+        product, result = filter_by_storage(result, id_rule, product)
+
+    return product
+
+
+def get_price_supplier2(products: list[dict]) -> list[dict]:
+    """
     Получение цены по каждой позиции
     :param products:
     :return:
@@ -82,6 +514,7 @@ def get_price_supplier(products: list[dict]) -> list[dict]:
                                            and str(res['distributorId']) not in product['id_rule'][rule]['id_suppliers'])
                     check_supplier = rule_white_supplier or rule_black_supplier
 
+                # TODO Сделать проверку поставщиков по списку с учётом возможной "звёздочки" в конце списка
                 if check_supplier:
                     filtered_supplier.append(res)
 
@@ -118,13 +551,13 @@ def get_price_supplier(products: list[dict]) -> list[dict]:
                 else:
                     rule_white_storage = (product['id_rule'][rule]['type_select_supplier_storage']
                                           and product['id_rule'][rule]['supplier_storage'] in str(
-                                res['supplierDescription']))
+                                res['supplierCode']))
                     rule_black_storage = (not product['id_rule'][rule]['type_select_supplier_storage']
                                           and product['id_rule'][rule]['supplier_storage'] not in str(
-                                res['supplierDescription']))
+                                res['supplierCode']))
                     check_storage = rule_white_storage or rule_black_storage
 
-                # Фильтруем позиции по правилу маршрута
+                # Фильтруем позиции по правилу склада
                 if check_storage:
                     filtered_storage.append(res)
 
@@ -208,7 +641,7 @@ def get_price_supplier(products: list[dict]) -> list[dict]:
                 if selection_rule.lower() == "цена":
                     filtered_selection_rule = sorted(filtered_res[rule], key=lambda x: float(x['price']), reverse=True)[:1]
 
-                elif selection_rule.lower() == "остаток":
+                elif selection_rule.lower() == "срок":
                     filtered_selection_rule = sorted(
                         filtered_res[rule], key=lambda x: float(x['deliveryPeriod']), reverse=True
                     )[:1]
