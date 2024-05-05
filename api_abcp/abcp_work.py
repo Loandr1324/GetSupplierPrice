@@ -1,6 +1,8 @@
 # from telegram.send_teleg import *
 import datetime
 import asyncio
+import time
+
 from aioabcpapi import Abcp
 # from data_notif.csv_work import WorkCSV
 from loguru import logger
@@ -71,7 +73,12 @@ class WorkABCP:
         """"
         Получаем цены поставщиков по позиции
         """
-        product = await self.api_abcp.cp.client.search.articles(brand=brand, number=number, use_online_stocks=1)
+        try:
+            product = await self.api_abcp.cp.client.search.articles(brand=brand, number=number, use_online_stocks=1)
+        except Exception as ex:
+            logger.error(f"При отправке запроса по продукту произошла ошибка: {ex}. Делаем паузу 30 сек")
+            time.sleep(30)
+            product = []
         await self.api_abcp.close()
         return product
 
