@@ -334,7 +334,7 @@ def filter_by_criteria(
         'min_stock': 'availability',
         'delivery_probability': 'deliveryProbability',
         'delivery_period': 'deliveryPeriod',
-        'price_deviation': 'price'
+        'price_deviation': 'priceIn'
     }
 
     filtered_results = []
@@ -345,16 +345,19 @@ def filter_by_criteria(
 
     for res in result:
         if criteria == 'price_deviation' and criteria_value:
-            if base_price is not None:
-                calc_deviation = abs(100 - int(res[res_criteria_key]) / int(base_price) * 100)
+            if base_price:
+                calc_deviation = abs(100 - int(res[res_criteria_key]) / base_price * 100)
                 check_criteria = calc_deviation <= int(criteria_value)
             else:
-                check_criteria = False  # Если base_price равно None, не учитываем этот результат
+                check_criteria = True  # Если base_price равно None, то не проверяем и пропускаем этот результат
         elif not criteria_value:
             check_criteria = True
         else:
             if criteria == 'delivery_period':
                 check_criteria = int(res[res_criteria_key]) <= int(criteria_value)
+            elif criteria == 'delivery_probability':
+                # Если вероятность поставки больше заданного критерия, или равна 0(не указана), то добавляем в результат
+                check_criteria = int(res[res_criteria_key]) >= int(criteria_value) or int(res[res_criteria_key]) == 0
             else:
                 check_criteria = int(res[res_criteria_key]) >= int(criteria_value)
 
@@ -397,9 +400,9 @@ def select_best_offer(
         filtered_results = []
 
     if selection_criteria.lower() == "цена":
-        filtered_results = sorted(filtered_res, key=lambda x: float(x['price']), reverse=True)[:1]
+        filtered_results = sorted(filtered_res, key=lambda x: float(x['priceIn']), reverse=False)[:1]
     elif selection_criteria.lower() == "срок":
-        filtered_results = sorted(filtered_res, key=lambda x: float(x['deliveryPeriod']), reverse=True)[:1]
+        filtered_results = sorted(filtered_res, key=lambda x: float(x['deliveryPeriod']), reverse=False)[:1]
     else:
         filtered_results = []
 
@@ -677,7 +680,7 @@ def sort_price_products(products: list[dict]) -> (list[dict], list[dict]):
                     'brand': product['brand'],
                     'row_product_on_sheet': product['row_product_on_sheet'],
                     'last_update_date': date_now,
-                    'new_price': rule_result['select_product'][0]['price']
+                    'new_price': rule_result['select_product'][0]['priceIn']
                 })
                 break
             else:
