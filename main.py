@@ -680,7 +680,10 @@ def sort_price_products(products: list[dict]) -> (list[dict], list[dict]):
                     'brand': product['brand'],
                     'row_product_on_sheet': product['row_product_on_sheet'],
                     'last_update_date': date_now,
-                    'new_price': rule_result['select_product'][0]['priceIn']
+                    'new_price': rule_result['select_product'][0]['priceIn'],
+                    'distributor_result': f"{id_rule_result}; "
+                                          f"Поставщик: {rule_result['select_product'][0]['distributorId']}; "
+                                          f"Склад: {rule_result['select_product'][0]['supplierCode']}",
                 })
                 break
             else:
@@ -707,7 +710,8 @@ def sort_price_products(products: list[dict]) -> (list[dict], list[dict]):
                     'brand': product['brand'],
                     'row_product_on_sheet': product['row_product_on_sheet'],
                     'last_update_date': date_now,
-                    'new_price': ''
+                    'new_price': '',
+                    'distributor_result': 'предложение не найдено см. вкладку ошибки',
                 })
 
     return price_product, err_price_product
@@ -745,7 +749,7 @@ def main():
     logger.debug(f"{err_price_product=}")
 
     # # Записываем полученные цены и возвращаем позиции без цены.
-    wk_g.set_price_products(new_price_product, count_row, name_column=['E', 'F'])
+    wk_g.set_price_products(new_price_product, count_row, name_column=['E', 'F', 'M'])
 
     # # Записываем в Google таблицу данные по количеству выбранных позиций на каждом этапе
     wk_g.save_new_result_on_sheet(err_price_product, 2, 2)
