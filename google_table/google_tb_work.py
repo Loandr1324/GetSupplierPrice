@@ -327,13 +327,13 @@ class WorkGoogle:
 
         self._rw_google.save_new_result_on_sheet(worksheet_id, start_row_index, data_for_sheet)
 
-    def set_price_products(self, filtered_products: list[dict], count_row: int or str, name_column: list) -> None:
+    def set_price_products(self, filtered_products: list[dict], count_row: int or str, name_column: list[str]) -> None:
         """
         Записываем информацию о цене и дате её получения в google таблицу
         :param filtered_products: Список словарей.
         Обязательный ключ [{'row_product_on_sheet': номер строки int or str}]
         :param count_row: Общее количество строк с данными таблицы без заголовка
-        :param name_column: Сочетание Букв колонки excel 'A' или 'B' или 'AA' или 'BB' и т.п. например: ['A', 'F']
+        :param name_column: Сочетание Букв колонки excel 'A' или 'B' или 'AA' или 'BB' и т.п. например: ['A', 'F', 'M']
         :return:
         """
         values = [
@@ -347,6 +347,13 @@ class WorkGoogle:
             {
                 'range': f"{name_column[1]}{product['row_product_on_sheet']}",
                 'values': [[product['last_update_date']]]
+            }
+            for product in filtered_products
+        )
+        values.extend(
+            {
+                'range': f"{name_column[2]}{product['row_product_on_sheet']}",
+                'values': [[product['distributor_result']]]
             }
             for product in filtered_products
         )
