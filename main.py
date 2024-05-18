@@ -400,9 +400,13 @@ def select_best_offer(
         filtered_results = []
 
     if selection_criteria.lower() == "цена":
-        filtered_results = sorted(filtered_res, key=lambda x: float(x['priceIn']), reverse=False)[:1]
+        # filtered_results = sorted(filtered_res, key=lambda x: float(x['priceIn']), reverse=False)[:1]
+        # Сортируем по цене, а затем по сроку поставки
+        filtered_results = sorted(filtered_res, key=lambda x: (float(x['priceIn']), float(x['deliveryPeriod'])))[:1]
     elif selection_criteria.lower() == "срок":
-        filtered_results = sorted(filtered_res, key=lambda x: float(x['deliveryPeriod']), reverse=False)[:1]
+        # filtered_results = sorted(filtered_res, key=lambda x: float(x['deliveryPeriod']), reverse=False)[:1]
+        # Сортируем по сроку поставки, а затем по цене
+        filtered_results = sorted(filtered_res, key=lambda x: (float(x['deliveryPeriod']), float(x['priceIn'])))[:1]
     else:
         filtered_results = []
 
