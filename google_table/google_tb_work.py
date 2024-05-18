@@ -175,6 +175,7 @@ class WorkGoogle:
         products = []
         for i, val in enumerate(sheet_products[1:], start=2):
             product = dict(zip(params_head, val))
+            product['price'] = self.convert_price(str(product['price']))
             product['updated_date'] = self.convert_date(str(product['updated_date']))
             product['row_product_on_sheet'] = i
             products.append(product)
@@ -254,6 +255,16 @@ class WorkGoogle:
         """
         return dt.strptime(date, '%d.%m.%Y') if date \
             else dt.strptime('01.01.2024', '%d.%m.%Y')
+
+    @staticmethod
+    def convert_price(price_str: str) -> float or None:
+        """
+        Преобразуем цену полученную из Google таблицы в необходимый формат
+        :param price_str: Строка с ценой в формате '2\xa0160,00', '160,00' или ''
+        :type price_str: str
+        :return: float or None
+        """
+        return float(price_str.replace('\xa0', '').replace(',', '.')) if price_str else None
 
     def convert_value_rule(self, dict_rule: dict) -> dict:
         """
