@@ -223,7 +223,7 @@ class WorkGoogle:
                        'supplier_storage_min_stock', 'delivery_probability', 'max_delivery_period',
                        'type_selection_rule', 'selection_rule']
         price_filter_rules = []
-        for i, val in enumerate(sheet_price_filter_rules[5:], start=6):
+        for i, val in enumerate(sheet_price_filter_rules[6:], start=7):
             price_filter_rule = dict(zip(params_head, val))
             price_filter_rule = self.convert_value_rule(price_filter_rule)
             price_filter_rule['row_price_filter_on_sheet'] = i
