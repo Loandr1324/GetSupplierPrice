@@ -192,7 +192,7 @@ class WorkGoogle:
         sheet_rule = self._rw_google.read_sheet(1)
         return {'count_products': int(sheet_rule[1][2]), 'days_interval': int(sheet_rule[2][2])}
 
-    def get_price_filter_rules(self) -> list[dict]:
+    def get_price_filter_rules(self) -> (list[dict], list):
         """
         Получаем вторую строку с первой страницы и возвращаем их в словаре с предварительно заданными ключами
         :return: list[dict
@@ -228,7 +228,11 @@ class WorkGoogle:
             price_filter_rule = self.convert_value_rule(price_filter_rule)
             price_filter_rule['row_price_filter_on_sheet'] = i
             price_filter_rules.append(price_filter_rule)
-        return price_filter_rules
+
+        # Считываем свои склады
+        own_warehouses = sheet_price_filter_rules[1][4].replace(" ", "").split(",")
+
+        return price_filter_rules, own_warehouses
 
     def set_selected_products(self, filtered_products: list[dict], count_row: int or str, name_column: str) -> None:
         """
