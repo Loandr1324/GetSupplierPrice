@@ -175,12 +175,13 @@ def filter_by_routes(result: list[dict], id_rule: str, product: dict, supplier: 
     logger.info("Фильтруем по маршрутам")
     filtered_by_routes = []
     rule_details = product['id_rule'][id_rule]
-    name_routes = rule_details.get('name_routes', '')
+    name_routes = rule_details.get('name_routes', [])
 
     for res in result:
         supplier_description = str(res['supplierDescription'])
         if name_routes:
-            matches = name_routes in supplier_description
+            # matches = name_routes in supplier_description
+            matches = any(route in supplier_description for route in name_routes)
             check_routes = matches if rule_details.get('type_select_routes', False) else not matches
         else:
             check_routes = True
