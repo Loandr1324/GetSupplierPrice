@@ -54,16 +54,22 @@ def selected_rule_for_position(products: list[dict], rules: list[dict]) -> list[
     return products
 
 
-def get_price_supplier(products: list[dict]) -> list[dict]:
+def get_price_supplier(products: list[dict], own_warehouses: list) -> list[dict]:
     """
     Получение цены согласно заданных правил
-    :param products:
+    :param products: Список словарей с товарами для проценки
+    :param own_warehouses: Список своих складов
     :return:
     """
     logger.debug(products)
     work_abcp = WorkABCP()
     for product in products:
         result = asyncio.run(work_abcp.get_price_supplier(product['brand'], product['number']))
+
+        logger.info(f"Количество предложений от ABCP: {len(result)}")
+        result = [res for res in result if str(res['distributorId']) not in own_warehouses]
+        logger.info(f"Количество предложений от ABCP без своих складов: {len(result)}")
+
         product['result'] = {'first_result': len(result)}
         product['result']['id_rule'] = {}
 
@@ -465,15 +471,15 @@ def filtered_result(result: list[dict], id_rule: str, product: dict) -> dict:
 
     :param result: Список с результатами от поставщиков.
     :param id_rule: Идентификатор применяемого правила.
-    :param product: Данные по продукту для фильтрации включая его правила
+    :param product: Данные по продукту для фильтрации включая его правила.
     :return: Возвращаем исходные данные по продукту с добавленными результатами фильтрации
     """
     logger.info(f"Обрабатываем фильтрацию по продукту {product['number']}: {product['brand']}")
-    # Обрабатываем правима по белому списку поставщиков
+    # Обрабатываем правила по белому списку поставщиков
     if product['id_rule'][id_rule]['id_suppliers'] and product['id_rule'][id_rule]['type_select_supplier']:
         product, result = filter_by_white_supplier(result, id_rule, product)
 
-    # Обрабатываем правима по чёрному списку поставщиков
+    # Обрабатываем правила по чёрному списку поставщиков
     elif product['id_rule'][id_rule]['id_suppliers'] and not product['id_rule'][id_rule]['type_select_supplier']:
         product, result = filter_by_black_supplier(result, id_rule, product)
         logger.warning(f"Количество после фильтрации по чёрному списку поставщиков: "
@@ -687,7 +693,8 @@ def sort_price_products(products: list[dict]) -> (list[dict], list[dict]):
                     'new_price': rule_result['select_product'][0]['priceIn'],
                     'distributor_result': f"{id_rule_result}; "
                                           f"Поставщик: {rule_result['select_product'][0]['distributorId']}; "
-                                          f"Склад: {rule_result['select_product'][0]['supplierCode']}",
+                                          f"Описание маршрута: "
+                                          f"{rule_result['select_product'][0]['supplierDescription']}",
                 })
                 break
             else:
@@ -738,14 +745,14 @@ def main():
     # logger.debug(products)
 
     # Получаем правила для проценки
-    rules = wk_g.get_price_filter_rules()
-    # logger.debug(rules)
+    rules, own_warehouses = wk_g.get_price_filter_rules()
+    # logger.debug(f"{own_warehouses=}")
 
     # Подставляем правила для отфильтрованных позиций
     products = selected_rule_for_position(products, rules)
 
     # Получаем цену поставщика согласно правил
-    products = get_price_supplier(products)
+    products = get_price_supplier(products, own_warehouses)
 
     # Выбираем позиции с полученной ценой и без цены
     new_price_product, err_price_product = sort_price_products(products)
