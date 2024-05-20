@@ -226,6 +226,7 @@ class WorkGoogle:
         for i, val in enumerate(sheet_price_filter_rules[6:], start=7):
             price_filter_rule = dict(zip(params_head, val))
             price_filter_rule = self.convert_value_rule(price_filter_rule)
+            price_filter_rule['name_routes'] = price_filter_rule['name_routes'].replace(" ", "").split(",")
             price_filter_rule['row_price_filter_on_sheet'] = i
             price_filter_rules.append(price_filter_rule)
 
