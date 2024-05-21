@@ -195,7 +195,7 @@ def filter_by_routes(result: list[dict], id_rule: str, product: dict, supplier: 
     existing_value = result_id_rule.get(filter_key, "")
     new_value = f"{supplier}: {count_matches}" if supplier else str(count_matches)
 
-    logger.debug(f"Получили {count_matches} результат(ов) по маршрутам")
+    logger.info(f"Получили {count_matches} результат(ов) по маршрутам")
 
     result_id_rule[filter_key] = f"{existing_value}, {new_value}" if existing_value else new_value
     return product, filtered_by_routes
@@ -729,6 +729,27 @@ def sort_price_products(products: list[dict]) -> (list[dict], list[dict]):
     return price_product, err_price_product
 
 
+def save_error(new_error: list[dict], wk_g: WorkGoogle) -> None:
+    """
+    Считываем ошибки за последние 7 дней и добавляем новые
+    :param wk_g: Класс WorkGoogle для работы с Google таблицей
+    :param new_error: Список словарей продуктов с ошибками
+    :return: None
+    """
+    logger.info(f"Считываем ошибки за последние 7 дней и добавляем новые")
+    list_error, days_log = wk_g.get_error()
+    logger.debug(f"Кол-во ошибок на листе: {len(list_error)=}")
+    # list_error = [error for error in list_error if (dt.now() - error['last_update_date']).days <= days_log]
+    new_list_error = []
+    for error in list_error:
+        if (dt.now() - error['last_update_date']).days <= days_log:
+            error['last_update_date'] = error['last_update_date'].strftime('%d.%m.%Y')
+            new_list_error.append(error)
+    logger.debug(f"Количество ошибок после фильтрации по дням: {len(new_list_error)=}")
+    new_list_error.extend(new_error)
+    wk_g.save_new_result_on_sheet(new_list_error, 2, 4)
+
+
 def main():
     """
     Основной процесс программы
@@ -760,11 +781,11 @@ def main():
     logger.debug(f"{new_price_product=}")
     logger.debug(f"{err_price_product=}")
 
-    # # Записываем полученные цены и возвращаем позиции без цены.
+    # Записываем полученные цены и возвращаем позиции без цены.
     wk_g.set_price_products(new_price_product, count_row, name_column=['E', 'F', 'M'])
 
-    # # Записываем в Google таблицу данные по количеству выбранных позиций на каждом этапе
-    wk_g.save_new_result_on_sheet(err_price_product, 2, 2)
+    # Записываем в Google таблицу данные с ошибками по количеству выбранных позиций на каждом этапе
+    save_error(err_price_product, wk_g)
 
     logger.info(f"... Окончание работы программы")
 
