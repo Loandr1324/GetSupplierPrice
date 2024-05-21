@@ -135,7 +135,7 @@ class RWGoogle:
             end_cell = sheet.cell(end_row_index, num_columns).address  # Адрес последней ячейки
             cell_range = f"{start_cell}:{end_cell}"  # Диапазон ячеек
 
-            new_values = values + [[''] * num_columns] * (end_row_index - len(values) - 1)
+            new_values = values + [[''] * num_columns] * (end_row_index - len(values) - 3)
 
             return sheet.update(cell_range, new_values)
 
@@ -253,8 +253,6 @@ class WorkGoogle:
             list_error.append(error)
         days_log = int(sheet_error[0][2])
         return list_error, days_log
-
-
 
     def set_selected_products(self, filtered_products: list[dict], count_row: int or str, name_column: str) -> None:
         """
