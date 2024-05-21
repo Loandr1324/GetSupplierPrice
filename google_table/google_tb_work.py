@@ -235,6 +235,27 @@ class WorkGoogle:
 
         return price_filter_rules, own_warehouses
 
+    def get_error(self) -> (list[dict], int):
+        """
+        Получаем список ошибок
+        :return: list[dict]
+        """
+        sheet_error = self._rw_google.read_sheet(2)
+
+        params_head = ['last_update_date', 'number', 'brand', 'description', 'id_rule',
+                       'first_result', 'filter_by_supplier', 'filter_by_routes', 'filter_by_storage',
+                       'filter_by_min_stock', 'filter_by_delivery_probability', 'filter_by_delivery_period',
+                       'filter_by_price_deviation', 'select_count_product']
+        list_error = []
+        for val in sheet_error[3:]:
+            error = dict(zip(params_head, val))
+            error['last_update_date'] = self.convert_date(str(error['last_update_date']))
+            list_error.append(error)
+        days_log = int(sheet_error[0][2])
+        return list_error, days_log
+
+
+
     def set_selected_products(self, filtered_products: list[dict], count_row: int or str, name_column: str) -> None:
         """
         Записываем информацию о выборе позиции для последующего получения цены
