@@ -128,8 +128,8 @@ class RWGoogle:
             num_columns = len(old_values[0])  # Определяем количество колонок с данными
 
             # Определяем последний индекс строки с учётом полученных данных
-            if len(values) + 1 > end_row_index:
-                end_row_index = len(values) + 1
+            if len(values) + start_row_index > end_row_index:
+                end_row_index = len(values) + start_row_index
 
             start_cell = sheet.cell(start_row_index, 1).address  # Адрес первой ячейки
             end_cell = sheet.cell(end_row_index, num_columns).address  # Адрес последней ячейки
