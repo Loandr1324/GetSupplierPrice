@@ -682,13 +682,19 @@ def sort_price_products(products: list[dict]) -> (list[dict], list[dict]):
 
     for product in products:
         logger.debug(product)
+        product_description = product.get('description', '')
         for id_rule_result in product['result']['id_rule']:
             rule_result = product['result']['id_rule'][id_rule_result]
             if rule_result['select_product']:
+                # Добавляем описание товара, если его нет
+                if not product_description:
+                    product_description = rule_result['select_product'][0]['description']
+
                 # Записываем результат в таблицу с исходными данными
                 price_product.append({
                     'number': product['number'],
                     'brand': product['brand'],
+                    'description': product_description,
                     'row_product_on_sheet': product['row_product_on_sheet'],
                     'last_update_date': date_now,
                     'new_price': rule_result['select_product'][0]['priceIn'],
@@ -720,6 +726,7 @@ def sort_price_products(products: list[dict]) -> (list[dict], list[dict]):
                 price_product.append({
                     'number': product['number'],
                     'brand': product['brand'],
+                    'description': product_description,
                     'row_product_on_sheet': product['row_product_on_sheet'],
                     'last_update_date': date_now,
                     'new_price': '',
@@ -781,8 +788,8 @@ def main():
     logger.debug(f"{new_price_product=}")
     logger.debug(f"{err_price_product=}")
 
-    # Записываем полученные цены и возвращаем позиции без цены.
-    wk_g.set_price_products(new_price_product, count_row, name_column=['E', 'F', 'M'])
+    # Записываем полученные цены
+    wk_g.set_price_products(new_price_product, count_row, name_column=['E', 'F', 'M', 'C'])
 
     # Записываем в Google таблицу данные с ошибками по количеству выбранных позиций на каждом этапе
     save_error(err_price_product, wk_g)
