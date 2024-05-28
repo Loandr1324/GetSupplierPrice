@@ -6,6 +6,7 @@ from google_table.google_tb_work import WorkGoogle
 from loguru import logger
 from api_abcp.abcp_work import WorkABCP
 from datetime import datetime as dt
+import statistics # Для определения медианной цены
 
 # Задаём параметры логирования
 logger.add(FILE_NAME_LOG,
@@ -403,17 +404,26 @@ def select_best_offer(
     criteria_value = product['id_rule'][id_rule].get('type_selection_rule')
     selection_criteria = "Цена" if not criteria_value else criteria_value
 
-    if not filtered_res:
-        filtered_results = []
+    if filtered_res:
+        if selection_criteria.lower() == "цена":
+            # Сортируем по цене, а затем по сроку поставки
+            filtered_results = sorted(filtered_res, key=lambda x: (float(x['priceIn']), float(x['deliveryPeriod'])))[:1]
 
-    if selection_criteria.lower() == "цена":
-        # filtered_results = sorted(filtered_res, key=lambda x: float(x['priceIn']), reverse=False)[:1]
-        # Сортируем по цене, а затем по сроку поставки
-        filtered_results = sorted(filtered_res, key=lambda x: (float(x['priceIn']), float(x['deliveryPeriod'])))[:1]
-    elif selection_criteria.lower() == "срок":
-        # filtered_results = sorted(filtered_res, key=lambda x: float(x['deliveryPeriod']), reverse=False)[:1]
-        # Сортируем по сроку поставки, а затем по цене
-        filtered_results = sorted(filtered_res, key=lambda x: (float(x['deliveryPeriod']), float(x['priceIn'])))[:1]
+        elif selection_criteria.lower() == "медиана":
+            # Сортируем по медианной цене, а затем по сроку поставки.
+            # Находим медианную цену
+            prices = [float(item['priceIn']) for item in filtered_res]
+            logger.info(f"Находим медиану из цен: {prices=}")
+            median_price = statistics.median(prices)
+            logger.info(f"Выбранная медианная цена: {median_price=}")
+            # Находим элемент, который ближе всего к медианной цене и имеет наименьший срок поставки
+            filtered_results = [min(
+                filtered_res, key=lambda x: (abs(float(x['priceIn']) - median_price), float(x['deliveryPeriod']))
+            )]
+
+        elif selection_criteria.lower() == "срок":
+            # Сортируем по сроку поставки, а затем по цене
+            filtered_results = sorted(filtered_res, key=lambda x: (float(x['deliveryPeriod']), float(x['priceIn'])))[:1]
     else:
         filtered_results = []
 
@@ -502,6 +512,7 @@ def filtered_result(result: list[dict], id_rule: str, product: dict) -> dict:
 
 def get_price_supplier2(products: list[dict]) -> list[dict]:
     """
+    TODO Удалить после запуска в продакшн эту функцию
     Получение цены по каждой позиции
     :param products:
     :return:
