@@ -381,6 +381,13 @@ class WorkGoogle:
             }
             for product in filtered_products
         )
+        values.extend(
+            {
+                'range': f"{name_column[3]}{product['row_product_on_sheet']}",
+                'values': [[product['description']]]
+            }
+            for product in filtered_products
+        )
 
         logger.debug(f"{values=}")
 
