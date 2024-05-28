@@ -181,7 +181,7 @@ def filter_by_routes(result: list[dict], id_rule: str, product: dict, supplier: 
         supplier_description = str(res['supplierDescription'])
         if name_routes:
             # matches = name_routes in supplier_description
-            matches = any(route in supplier_description for route in name_routes)
+            matches = any(route in supplier_description for route in name_routes if route)
             check_routes = matches if rule_details.get('type_select_routes', False) else not matches
         else:
             check_routes = True
