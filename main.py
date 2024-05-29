@@ -510,177 +510,6 @@ def filtered_result(result: list[dict], id_rule: str, product: dict) -> dict:
     return product
 
 
-def get_price_supplier2(products: list[dict]) -> list[dict]:
-    """
-    TODO Удалить после запуска в продакшн эту функцию
-    Получение цены по каждой позиции
-    :param products:
-    :return:
-    """
-    work_abcp = WorkABCP()
-    for product in products:
-        result = asyncio.run(work_abcp.get_price_supplier(product['brand'], product['number']))
-        product['result'] = {'first_result': len(result)}
-        product['result']['id_rule'] = {}
-        filtered_res = {}
-        for rule in product['id_rule']:
-            filtered_res[rule] = []
-            product['result']['id_rule'][rule] = {}
-
-            filtered_supplier = []
-            for res in result:
-                # Определяем правила фильтрации по поставщикам
-                if not product['id_rule'][rule]['id_suppliers']:
-                    check_supplier = True
-                else:
-                    rule_white_supplier = (product['id_rule'][rule]['type_select_supplier']
-                                           and str(res['distributorId']) in product['id_rule'][rule]['id_suppliers'])
-                    rule_black_supplier = (not product['id_rule'][rule]['type_select_supplier']
-                                           and str(res['distributorId']) not in product['id_rule'][rule]['id_suppliers'])
-                    check_supplier = rule_white_supplier or rule_black_supplier
-
-                # TODO Сделать проверку поставщиков по списку с учётом возможной "звёздочки" в конце списка
-                if check_supplier:
-                    filtered_supplier.append(res)
-
-            filtered_res[rule] = filtered_supplier
-            product['result']['id_rule'][rule]['filter_by_supplier'] = len(filtered_supplier)
-
-            # Фильтруем по маршрутам
-            filtered_routes = []
-            for res in filtered_res[rule]:
-                # Определяем правила фильтрации по маршрутам
-                if not product['id_rule'][rule]['name_routes']:
-                    check_routes = True
-                else:
-                    rule_white_routes = (product['id_rule'][rule]['type_select_routes']
-                                         and product['id_rule'][rule]['name_routes'] in str(res['supplierDescription']))
-                    rule_black_routes = (not product['id_rule'][rule]['type_select_routes']
-                                         and product['id_rule'][rule]['name_routes'] not in str(
-                                res['supplierDescription']))
-                    check_routes = rule_white_routes or rule_black_routes
-
-                # Фильтруем позиции по правилу маршрута
-                if check_routes:
-                    filtered_routes.append(res)
-
-            filtered_res[rule] = filtered_routes
-            product['result']['id_rule'][rule]['filter_by_routes'] = len(filtered_res[rule])
-
-            # Фильтруем по складам
-            filtered_storage = []
-            for res in filtered_res[rule]:
-                # Определяем правила фильтрации по складам
-                if not product['id_rule'][rule]['supplier_storage']:
-                    check_storage = True
-                else:
-                    rule_white_storage = (product['id_rule'][rule]['type_select_supplier_storage']
-                                          and product['id_rule'][rule]['supplier_storage'] in str(
-                                res['supplierCode']))
-                    rule_black_storage = (not product['id_rule'][rule]['type_select_supplier_storage']
-                                          and product['id_rule'][rule]['supplier_storage'] not in str(
-                                res['supplierCode']))
-                    check_storage = rule_white_storage or rule_black_storage
-
-                # Фильтруем позиции по правилу склада
-                if check_storage:
-                    filtered_storage.append(res)
-
-            filtered_res[rule] = filtered_storage
-            product['result']['id_rule'][rule]['filter_by_storage'] = len(filtered_res[rule])
-
-            # Фильтруем по минимальному остатку поставщика
-            filtered_min_stock = []
-            min_stock = product['id_rule'][rule]['supplier_storage_min_stock']
-            for res in filtered_res[rule]:
-                # Определяем правила фильтрации по минимальному остатку
-                if not min_stock:
-                    check_min_stock = True
-                else:
-                    check_min_stock = int(res['availability']) >= int(min_stock)
-
-                # Фильтруем позиции по правилу минимального остатка
-                if check_min_stock:
-                    filtered_min_stock.append(res)
-
-            filtered_res[rule] = filtered_min_stock
-            product['result']['id_rule'][rule]['filter_by_min_stock'] = len(filtered_res[rule])
-
-            # Фильтруем по вероятности поставки поставщика
-            filtered_delivery_probability = []
-            delivery_probability = product['id_rule'][rule]['delivery_probability']
-            for res in filtered_res[rule]:
-                # Определяем правила фильтрации по вероятности поставки
-                if not delivery_probability:
-                    check_delivery_probability = True
-                else:
-                    check_delivery_probability = int(res['deliveryProbability']) >= int(delivery_probability)
-
-                # Фильтруем позиции по правилу вероятности поставки
-                if check_delivery_probability:
-                    filtered_delivery_probability.append(res)
-
-            filtered_res[rule] = filtered_delivery_probability
-            product['result']['id_rule'][rule]['filter_by_delivery_probability'] = len(filtered_res[rule])
-
-            # Фильтруем по сроку поставки поставщика
-            filtered_delivery_period = []
-            max_delivery_period = product['id_rule'][rule]['max_delivery_period']
-            for res in filtered_res[rule]:
-                # Определяем правила фильтрации по сроку поставки
-                if not max_delivery_period:
-                    check_delivery_period = True
-                else:
-                    check_delivery_period = int(res['deliveryPeriod']) <= int(max_delivery_period)
-
-                # Фильтруем позиции по правилу сроку поставки
-                if check_delivery_period:
-                    filtered_delivery_period.append(res)
-
-            filtered_res[rule] = filtered_delivery_period
-            product['result']['id_rule'][rule]['filter_by_delivery_period'] = len(filtered_res[rule])
-
-            # Фильтруем по отклонению в цене
-            filtered_delivery_period = []
-            price_deviation = product['id_rule'][rule]['price_deviation']
-            for res in filtered_res[rule]:
-                # Определяем правила фильтрации по цене
-                if not price_deviation or not product['price']:
-                    check_price_deviation = True
-                else:
-                    calc_deviation = abs(100 - int(res['price']) / int(product['price']) * 100)
-                    check_price_deviation = calc_deviation <= int(price_deviation)
-
-                # Фильтруем позиции по цене
-                if check_price_deviation:
-                    filtered_delivery_period.append(res)
-
-            filtered_res[rule] = filtered_delivery_period
-            product['result']['id_rule'][rule]['filter_by_price_deviation'] = len(filtered_res[rule])
-
-            # Выбираем одно предложение по указанному правилу (срок или цена)
-            filtered_selection_rule = []
-            selection_rule = product['id_rule'][rule]['type_selection_rule']
-            selection_rule = "Цена" if not selection_rule else selection_rule
-            if filtered_res[rule]:
-                if selection_rule.lower() == "цена":
-                    filtered_selection_rule = sorted(filtered_res[rule], key=lambda x: float(x['price']), reverse=True)[:1]
-
-                elif selection_rule.lower() == "срок":
-                    filtered_selection_rule = sorted(
-                        filtered_res[rule], key=lambda x: float(x['deliveryPeriod']), reverse=True
-                    )[:1]
-            else:
-                filtered_selection_rule = []
-
-            filtered_res[rule] = filtered_selection_rule
-            logger.debug(filtered_res[rule])
-            product['result']['id_rule'][rule]['select_count_product'] = len(filtered_res[rule])
-            product['result']['id_rule'][rule]['select_product'] = filtered_res[rule]
-
-    return products
-
-
 def sort_price_products(products: list[dict]) -> (list[dict], list[dict]):
     """
     Сортируем результаты проценки полученные от поставщика на позиции с полученной ценой и без
@@ -768,6 +597,29 @@ def save_error(new_error: list[dict], wk_g: WorkGoogle) -> None:
     wk_g.save_new_result_on_sheet(new_list_error, 2, 4)
 
 
+def add_result_to_all_product(result: list[dict], data: list[dict]) -> list[dict]:
+    """
+    Добавляем результат проценки ко всем совпадающим позициям из общего списка позиций.
+    Т.е. добавляем данные к дублирующимся позициям на листе.
+    :param result: Список словарей с результатами проценки
+    :param data: Весь список позиций
+    :return: Весь список позиций с дублями, по которым есть результат проценки
+    """
+    # Создаем словарь для быстрого поиска значений 'result' по комбинации 'number' и 'brand'
+    result_lookup = {(item['number'], item['brand']): item['result'] for item in result}
+
+    # Создаем новый список, добавляя 'result' из первого списка, если значения 'number' и 'brand' совпадают
+    new_list = []
+    for item in data:
+        key = (item['number'], item['brand'])
+        if key in result_lookup:
+            new_item = item.copy()  # Копируем исходный словарь, чтобы не изменять его
+            new_item['result'] = result_lookup[key]
+            logger.warning(f"{new_item=}")
+            new_list.append(new_item)
+    return new_list
+
+
 def main():
     """
     Основной процесс программы
@@ -776,11 +628,11 @@ def main():
     logger.info(f"... Запуск программы")
     # Получаем данные из Google таблицы
     wk_g = WorkGoogle()
-    products = wk_g.get_products()
-    count_row = len(products)
+    all_products = wk_g.get_products()
+    count_row = len(all_products)
     logger.info(f"Всего позиций на листе: {count_row}")
 
-    products = filtered_products_by_flag(products)
+    products = filtered_products_by_flag(all_products)
     logger.info(f"Позиций для получения цены: {len(products)}")
     # logger.debug(products)
 
@@ -793,6 +645,9 @@ def main():
 
     # Получаем цену поставщика согласно правил
     products = get_price_supplier(products, own_warehouses)
+
+    # Добавляем результат проценки ко всем дублям позиций в исходной таблице
+    products = add_result_to_all_product(products, all_products)
 
     # Выбираем позиции с полученной ценой и без цены
     new_price_product, err_price_product = sort_price_products(products)
