@@ -156,6 +156,7 @@ class WorkGoogle:
         :return: list[dict
             ключи словаря {
             'number' - Код детали,
+            'alias' - псевдоним кода детали,
             'brand' - Имя производителя
             'description' - Описание детали
             'stock' - Наличие
@@ -170,7 +171,7 @@ class WorkGoogle:
             },...]
         """
         sheet_products = self._rw_google.read_sheet(0)
-        params_head = ['number', 'brand', 'description', 'stock', 'price', 'updated_date', 'turn_ratio',
+        params_head = ['number', 'alias', 'brand', 'description', 'stock', 'price', 'updated_date', 'turn_ratio',
                        'norm_stock', 'product_group', 'rule', 'select_flag', 'id_rule']
         products = []
         for i, val in enumerate(sheet_products[1:], start=2):
