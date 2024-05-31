@@ -549,7 +549,7 @@ def sort_price_products(products: list[dict]) -> (list[dict], list[dict]):
                 err_price_product.append({
                     'number': product['number'],
                     'brand': product['brand'],
-                    'description': product['description'],
+                    'description': product_description,
                     'last_update_date': date_now,
                     'id_rule': id_rule_result,
                     'first_result': product['result']['first_result'],
@@ -568,8 +568,8 @@ def sort_price_products(products: list[dict]) -> (list[dict], list[dict]):
                     'brand': product['brand'],
                     'description': product_description,
                     'row_product_on_sheet': product['row_product_on_sheet'],
-                    'last_update_date': date_now,
-                    'new_price': '',
+                    'last_update_date': product['updated_date'],
+                    'new_price': product['price'],
                     'distributor_result': 'предложение не найдено см. вкладку ошибки',
                 })
 
@@ -615,7 +615,6 @@ def add_result_to_all_product(result: list[dict], data: list[dict]) -> list[dict
         if key in result_lookup:
             new_item = item.copy()  # Копируем исходный словарь, чтобы не изменять его
             new_item['result'] = result_lookup[key]
-            logger.warning(f"{new_item=}")
             new_list.append(new_item)
     return new_list
 
