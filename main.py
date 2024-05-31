@@ -658,7 +658,7 @@ def main():
     logger.debug(f"{err_price_product=}")
 
     # Записываем полученные цены
-    wk_g.set_price_products(new_price_product, count_row, name_column=['F', 'G', 'N', 'D'])
+    wk_g.set_price_products(new_price_product, count_row, name_column=['G', 'H', 'O', 'E'])
 
     # Записываем в Google таблицу данные с ошибками по количеству выбранных позиций на каждом этапе
     save_error(err_price_product, wk_g)
