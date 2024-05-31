@@ -172,8 +172,8 @@ class WorkGoogle:
             },...]
         """
         sheet_products = self._rw_google.read_sheet(0)
-        params_head = ['number', 'alias', 'brand', 'description', 'stock', 'price', 'updated_date', 'turn_ratio',
-                       'norm_stock', 'product_group', 'rule', 'select_flag', 'id_rule']
+        params_head = ['number', 'alias_number', 'brand', 'alias_brand', 'description', 'stock', 'price',
+                       'updated_date', 'turn_ratio', 'norm_stock', 'product_group', 'rule', 'select_flag', 'id_rule']
         products = []
         for i, val in enumerate(sheet_products[1:], start=2):
             product = dict(zip(params_head, val))

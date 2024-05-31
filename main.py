@@ -66,10 +66,12 @@ def get_price_supplier(products: list[dict], own_warehouses: list) -> list[dict]
     work_abcp = WorkABCP()
     for product in products:
         # Выбираем номер для поиска
-        number = product['alias'] if product['alias'] else product['number']
-
+        number = product['alias_number'] if product['alias_number'] else product['number']
+        # Выбираем бренд для поиска
+        brand = product['alias_brand'] if product['alias_brand'] else product['brand']
+        logger.warning(f"Ищем позицию {brand}: {number}")
         # Запрашиваем данные по позиции с платформы ABCP
-        result = asyncio.run(work_abcp.get_price_supplier(product['brand'], number))
+        result = asyncio.run(work_abcp.get_price_supplier(brand, number))
 
         logger.info(f"Количество предложений от ABCP: {len(result)}")
         result = [res for res in result if str(res['distributorId']) not in own_warehouses]
@@ -567,12 +569,14 @@ def sort_price_products(products: list[dict]) -> (list[dict], list[dict]):
                     'select_count_product': rule_result['select_count_product']
                 })
             if err_price_product:
+                date = product['updated_date'].strftime("%d.%m.%Y")
+
                 price_product.append({
                     'number': product['number'],
                     'brand': product['brand'],
                     'description': product_description,
                     'row_product_on_sheet': product['row_product_on_sheet'],
-                    'last_update_date': product['updated_date'],
+                    'last_update_date': date,
                     'new_price': product['price'],
                     'distributor_result': 'предложение не найдено см. вкладку ошибки',
                 })
