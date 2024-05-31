@@ -65,7 +65,11 @@ def get_price_supplier(products: list[dict], own_warehouses: list) -> list[dict]
     logger.debug(products)
     work_abcp = WorkABCP()
     for product in products:
-        result = asyncio.run(work_abcp.get_price_supplier(product['brand'], product['number']))
+        # Выбираем номер для поиска
+        number = product['alias'] if product['alias'] else product['number']
+
+        # Запрашиваем данные по позиции с платформы ABCP
+        result = asyncio.run(work_abcp.get_price_supplier(product['brand'], number))
 
         logger.info(f"Количество предложений от ABCP: {len(result)}")
         result = [res for res in result if str(res['distributorId']) not in own_warehouses]
@@ -485,7 +489,7 @@ def filtered_result(result: list[dict], id_rule: str, product: dict) -> dict:
     :param product: Данные по продукту для фильтрации включая его правила.
     :return: Возвращаем исходные данные по продукту с добавленными результатами фильтрации
     """
-    logger.info(f"Обрабатываем фильтрацию по продукту {product['number']}: {product['brand']}")
+    logger.info(f"Обрабатываем фильтрацию по продукту {product['brand']}: {product['number']}")
     # Обрабатываем правила по белому списку поставщиков
     if product['id_rule'][id_rule]['id_suppliers'] and product['id_rule'][id_rule]['type_select_supplier']:
         product, result = filter_by_white_supplier(result, id_rule, product)
