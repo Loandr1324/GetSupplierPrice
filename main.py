@@ -570,6 +570,7 @@ def sort_price_products(products: list[dict]) -> (list[dict], list[dict]):
                 })
             if err_price_product:
                 date = product['updated_date'].strftime("%d.%m.%Y")
+                date = '' if date == '01.01.2024' else date
 
                 price_product.append({
                     'number': product['number'],
